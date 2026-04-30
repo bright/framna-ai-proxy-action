@@ -11,6 +11,14 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.account_id }}" ]; then
+          echo "::error::account_id input is required but was not provided. Set BEDROCK_ACCOUNT_ID as a GitHub variable at org or repo level (value: your AWS account ID)."
+          exit 1
+        fi
+
     - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
       with:
         role-to-assume: arn:aws:iam::${{ inputs.account_id }}:role/framna-ai-proxy-prod-bedrock
