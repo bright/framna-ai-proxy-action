@@ -1,0 +1,18 @@
+name: Bright Bedrock Auth
+description: >
+  Authenticates to AWS via GitHub OIDC and assumes the framna-ai-proxy Bedrock role.
+  Exports AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_SESSION_TOKEN for subsequent steps.
+
+inputs:
+  account_id:
+    required: true
+    description: AWS account ID that owns the framna-ai-proxy-prod-bedrock role
+
+runs:
+  using: composite
+  steps:
+    - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+      with:
+        role-to-assume: arn:aws:iam::${{ inputs.account_id }}:role/framna-ai-proxy-prod-bedrock
+        aws-region: eu-central-1
+        role-session-name: gh-${{ github.repository_id }}-${{ github.run_id }}
