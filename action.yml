@@ -11,16 +11,58 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Validate inputs
+    - name: Validate account_id
       shell: bash
       run: |
-        if [ -z "${{ inputs.account_id }}" ]; then
-          echo "::error::account_id input is required but was not provided. Set BEDROCK_ACCOUNT_ID as a GitHub variable at org or repo level (value: your AWS account ID)."
+        if [[ -z "${{ inputs.account_id }}" ]]; then
+          echo "::error title=Missing account_id::account_id input is empty. Set BEDROCK_ACCOUNT_ID as a GitHub variable and pass it via \${{ vars.BEDROCK_ACCOUNT_ID }}. Ask your Framna contact for the account ID."
+          exit 1
+        fi
+        if ! [[ "${{ inputs.account_id }}" =~ ^[0-9]{12}$ ]]; then
+          echo "::error title=Invalid account_id::account_id must be a 12-digit AWS account number, got: '${{ inputs.account_id }}'"
           exit 1
         fi
 
-    - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+    - name: Authenticate to AWS via GitHub OIDC
+      id: auth
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
       with:
         role-to-assume: arn:aws:iam::${{ inputs.account_id }}:role/framna-ai-proxy-prod-bedrock
         aws-region: eu-central-1
         role-session-name: gh-${{ github.repository_id }}-${{ github.run_id }}
+
+    - name: Diagnose auth failure
+      if: steps.auth.outcome == 'failure'
+      shell: bash
+      run: |
+        ROLE_ARN="arn:aws:iam::${{ inputs.account_id }}:role/framna-ai-proxy-prod-bedrock"
+
+        if [[ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]]; then
+          echo "::error title=Missing OIDC permission::Add 'id-token: write' to your workflow or job permissions block."
+          exit 0
+        fi
+
+        OIDC_TOKEN=$(curl -sf \
+          -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+          | jq -r '.value' 2>/dev/null || true)
+
+        if [[ -z "$OIDC_TOKEN" ]]; then
+          echo "::error title=OIDC token fetch failed::Could not obtain OIDC token. Verify 'id-token: write' permission is set."
+          exit 0
+        fi
+
+        ERROR=$(aws sts assume-role-with-web-identity \
+          --role-arn "$ROLE_ARN" \
+          --role-session-name diagnostic \
+          --web-identity-token "$OIDC_TOKEN" 2>&1 || true)
+
+        if echo "$ERROR" | grep -q "Not authorized to perform sts:AssumeRoleWithWebIdentity"; then
+          echo "::error title=Repo not authorised::'$GITHUB_REPOSITORY' is not in the Bedrock allow-list."
+          echo "Fix: open a PR adding '$GITHUB_REPOSITORY' to cdk/allowed-repos.yaml in bright/framna-ai-proxy,"
+          echo "then ask a CDK deployer to run: cdk deploy framna-ai-proxy-prod-core"
+        elif echo "$ERROR" | grep -q "NoSuchEntity\|InvalidClientTokenId\|InvalidIdentityToken"; then
+          echo "::error title=Role not found::Role '$ROLE_ARN' does not exist. Is account_id (${{ inputs.account_id }}) correct?"
+        else
+          echo "::error title=AWS auth failed::Unexpected error: $ERROR"
+        fi
