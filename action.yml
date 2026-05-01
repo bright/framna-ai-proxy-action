@@ -32,9 +32,14 @@ runs:
         role-session-name: gh-${{ github.repository_id }}-${{ github.run_id }}
 
     - name: Diagnose auth failure
-      if: steps.auth.outcome == 'failure'
+      if: failure()
       shell: bash
       run: |
+        # If validate-inputs failed, account_id is missing/invalid — that step already printed the error.
+        if [[ -z "${{ inputs.account_id }}" ]] || ! [[ "${{ inputs.account_id }}" =~ ^[0-9]{12}$ ]]; then
+          exit 0
+        fi
+
         ROLE_ARN="arn:aws:iam::${{ inputs.account_id }}:role/framna-ai-proxy-prod-bedrock"
 
         if [[ -z "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]]; then
