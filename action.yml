@@ -15,7 +15,7 @@ runs:
       shell: bash
       run: |
         if [[ -z "${{ inputs.account_id }}" ]]; then
-          echo "::error title=Missing account_id::account_id input is empty. Set BEDROCK_ACCOUNT_ID as a GitHub variable and pass it via \${{ vars.BEDROCK_ACCOUNT_ID }}. Ask your Framna contact for the account ID."
+          echo "::error title=Missing account_id::account_id input is empty. Set BEDROCK_ACCOUNT_ID as a GitHub variable at org or repo level and reference it via vars.BEDROCK_ACCOUNT_ID. Ask your Framna contact for the account ID."
           exit 1
         fi
         if ! [[ "${{ inputs.account_id }}" =~ ^[0-9]{12}$ ]]; then
