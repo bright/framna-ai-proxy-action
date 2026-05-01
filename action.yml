@@ -64,8 +64,11 @@ runs:
 
         if echo "$ERROR" | grep -q "Not authorized to perform sts:AssumeRoleWithWebIdentity"; then
           echo "::error title=Repo not authorised::'$GITHUB_REPOSITORY' is not in the Bedrock allow-list."
-          echo "Fix: open a PR adding '$GITHUB_REPOSITORY' to cdk/allowed-repos.yaml in bright/framna-ai-proxy,"
-          echo "then ask a CDK deployer to run: cdk deploy framna-ai-proxy-prod-core"
+          echo "1. Edit cdk/allowed-repos.yaml in bright/framna-ai-proxy and add the line:"
+          echo "     - $GITHUB_REPOSITORY"
+          echo "   Direct link: https://github.com/bright/framna-ai-proxy/edit/main/cdk/allowed-repos.yaml"
+          echo "2. Open a PR and get it merged."
+          echo "3. Ask a CDK deployer to run: cdk deploy framna-ai-proxy-prod-core"
         elif echo "$ERROR" | grep -q "NoSuchEntity\|InvalidClientTokenId\|InvalidIdentityToken"; then
           echo "::error title=Role not found::Role '$ROLE_ARN' does not exist. Is account_id (${{ inputs.account_id }}) correct?"
         else
